@@ -27,7 +27,7 @@ Input Audio → ASR (Wav2Vec 2.0) → Text → NMT (mBART + RL) → Translated T
 ```
 
 ### Language Pipeline:
-- **Source Audio:** English / Hindi / Gujarati / French / German
+- **Source Audio:** English
 - **Target Output:** Multilingual audio streams in real-time
 
 ## 🏗️ Tech Stack
@@ -95,7 +95,7 @@ python main.py --input_audio sample_news.wav
 
 ## 📝 Future Work
 
-- Add more target languages (Arabic, Spanish, Italian, Japanese, Korean, Tamil)
+- Add more target languages
 - Web-based UI for real-time audio translation
 - Model compression for edge deployment
 - Sentiment-aware translation tone adaptation
