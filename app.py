@@ -3,31 +3,43 @@ import os
 import speech_recognition as sr
 from pydub import AudioSegment
 from googletrans import Translator
-from gtts import gTTS
 import webbrowser
 import threading
 import logging
 from pathlib import Path
+import torch
+import soundfile as sf
+from TTS.api import TTS
 
 app = Flask(__name__, static_folder="static")
 UPLOAD_FOLDER = Path("uploads")
 UPLOAD_FOLDER.mkdir(exist_ok=True)
-
 ALLOWED_EXTENSIONS = {"mp3", "wav", "ogg", "flac", "m4a"}
 LANGUAGE_MAP = {
     "en": "English", "fr": "French", "es": "Spanish",
-    "de": "German", "hi": "Hindi",
-    "ar": "Arabic", "it": "Italian", "ja": "Japanese",
-    "ko": "Korean", "ta": "Tamil"
+    "de": "German", "hi": "Hindi", "ar": "Arabic",
+    "it": "Italian", "ja": "Japanese", "ko": "Korean",
+    "ta": "Tamil"
 }
-
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
 MAX_TEXT_LENGTH = 5000  # Characters
-
 progress = 0
 cancel_process = False
-
 logging.basicConfig(level=logging.INFO)
+device = "cuda" if torch.cuda.is_available() else "cpu"
+tts_model_path = "./models/fastspeech2_model.pth"
+vocoder_model_path = "./models/vocoder_model.pth"
+config_path = "./configs/config.json"
+tts = None
+try:
+    if Path(tts_model_path).exists() and Path(vocoder_model_path).exists() and Path(config_path).exists():
+        tts = TTS(model_path=tts_model_path, vocoder_path=vocoder_model_path, config_path=config_path).to(device)
+        logging.info("FastSpeech 2 model loaded successfully.")
+    else:
+        logging.warning("FastSpeech 2 model files not found. Falling back to gTTS.")
+except Exception as e:
+    tts = None
+    logging.error(f"Error loading FastSpeech 2 model: {e}. Falling back to gTTS.")
 
 def allowed_file(filename):
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -61,20 +73,15 @@ def speech_to_text(audio_path):
     update_progress(40)
     if cancel_process:
         return None
-
     recognizer = sr.Recognizer()
     wav_audio_path = convert_to_wav(audio_path)
-
     if wav_audio_path is None:
         return None
-
     try:
         with sr.AudioFile(wav_audio_path) as source:
             audio = recognizer.record(source)
-
         if cancel_process:
             return None
-
         text = recognizer.recognize_google(audio)
         update_progress(60)
         return text
@@ -93,7 +100,6 @@ def translate_text(text, target_lang):
     update_progress(75)
     if cancel_process:
         return None
-
     translator = Translator()
     try:
         translated = translator.translate(text, dest=target_lang)
@@ -103,16 +109,29 @@ def translate_text(text, target_lang):
         logging.error(f"🔴 Translation failed: {e}")
         return None
 
-def text_to_speech(text, lang, output_path="static/translated_audio.mp3"):
+def text_to_speech(text, lang, output_path="static/translated_audio.wav"):
     global cancel_process
     if cancel_process:
         return None
-
     try:
-        tts = gTTS(text=text, lang=lang)
-        tts.save(output_path)
-        update_progress(100)
-        return output_path
+        if tts:
+            speaker_map = {
+                "en": "en_001", "fr": "fr_001", "es": "es_001",
+                "de": "de_001", "hi": "hi_001", "ar": "ar_001",
+                "it": "it_001", "ja": "ja_001", "ko": "ko_001",
+                "ta": "ta_001"
+            }
+            speaker = speaker_map.get(lang, "en_001")
+            wav = tts.tts(text=text, speaker=speaker, language=lang)
+            sf.write(output_path, wav, samplerate=24000)
+            update_progress(100)
+            return output_path
+        else:
+            from gtts import gTTS
+            tts_gtts = gTTS(text=text, lang=lang)
+            tts_gtts.save(output_path.replace(".wav", ".mp3"))
+            update_progress(100)
+            return output_path.replace(".wav", ".mp3")
     except Exception as e:
         logging.error(f"🔴 Text-to-speech conversion failed: {e}")
         return None
@@ -192,7 +211,10 @@ def get_progress():
 
 @app.route("/download")
 def download():
-    return send_file("static/translated_audio.mp3", as_attachment=True)
+    if tts:
+        return send_file("static/translated_audio.wav", as_attachment=True)
+    else:
+        return send_file("static/translated_audio.mp3", as_attachment=True)
 
 def open_browser():
     webbrowser.open_new("http://127.0.0.1:5000/")
