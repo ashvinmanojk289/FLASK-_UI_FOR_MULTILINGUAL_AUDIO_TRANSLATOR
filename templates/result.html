@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Translation Result</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <script>
+        (function() {
+            const savedTheme = localStorage.getItem("theme") ||
+                (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+            if (savedTheme === "dark") {
+                document.documentElement.classList.add("dark-mode");
+            }
+        })();
+    </script>
+</head>
+<body class="result-page">
+    <main class="container">
+        <h2>Translation Result</h2>
+
+        <section>
+            <h3>Original Speech/Text:</h3>
+            <p>{{ transcript }}</p>
+        </section>
+
+        <section>
+            <h3>Translated Text:</h3>
+            <p>{{ translated_text }}</p>
+        </section>
+
+        <section>
+            <h3>Translated Speech:</h3>
+            <audio controls aria-label="Translated Audio">
+                <source src="{{ audio_output }}" type="audio/mp3">
+                Your browser does not support the audio element.
+            </audio>
+        </section>
+
+        <div class="button-group">
+            <a href="{{ url_for('download') }}" class="custom-btn" aria-label="Download Translated Audio">Download Translated Audio</a>
+            <a href="/" class="custom-btn" aria-label="Upload Another File/Text">Upload Another File/Text</a>
+        </div>
+    </main>
+</body>
+</html>

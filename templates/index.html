@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SpeakEasy AI</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+</head>
+<body>
+    <div id="loading-container" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255, 255, 255, 0.8); justify-content: center; align-items: center; z-index: 1000;">
+        <div class="hourglass"></div>
+    </div>
+
+    <h1 class="main-heading">SpeakEasy AI</h1>
+
+    <div class="theme-toggle">
+        <span class="theme-icon" id="sun-icon">🌞</span>
+        <input type="checkbox" id="theme-switch">
+        <label for="theme-switch" class="slider"></label>
+        <span class="theme-icon" id="moon-icon">🌙</span>
+    </div>
+
+    <main class="container">
+        <h2>Input Type</h2>
+
+        {% if error %}
+        <p style="color: red; font-weight: bold;">{{ error }}</p>
+        {% endif %}
+
+        <div class="button-group">
+            <button type="button" id="audioInputButton" aria-label="Upload Audio">Upload Audio</button>
+            <button type="button" id="textInputButton" aria-label="Enter Text">Enter Text</button>
+        </div>
+
+        <form id="uploadForm" action="/" method="POST" enctype="multipart/form-data" style="display: none;">
+            <div class="input-group" id="audioInputGroup" style="display: none;">
+                <input type="radio" id="audioInputRadio" name="inputType" value="audio" checked style="display:none;">
+                <label for="audioInputRadio" style="display:none;">Upload Audio</label>
+                <input type="file" id="fileInput" name="audio">
+            </div>
+
+            <div class="input-group" id="textInputGroup" style="display: none;">
+                <input type="radio" id="textInputRadio" name="inputType" value="text" style="display:none;">
+                <label for="textInputRadio" style="display:none;">Enter Text</label>
+                <textarea id="textInput" name="text" rows="4" cols="50"></textarea>
+            </div>
+
+            <div class="input-group">
+                <label for="languageSelect">Choose a Language:</label>
+                <select name="language" id="languageSelect">
+                    {% for code, name in languages.items() %}
+                        <option value="{{ code }}">{{ name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="button-group">
+                <button type="submit" id="process-btn" onclick="startProcessing(event)" aria-label="Process">Process</button>
+            </div>
+        </form>
+    </main>
+
+    <script>
+        function attachEventListeners() {
+            document.getElementById('audioInputButton').addEventListener('click', function() {
+                document.getElementById('audioInputGroup').style.display = 'block';
+                document.getElementById('textInputGroup').style.display = 'none';
+                document.getElementById('uploadForm').style.display = 'block';
+                document.getElementById('audioInputRadio').checked = true;
+            });
+    
+            document.getElementById('textInputButton').addEventListener('click', function() {
+                document.getElementById('textInputGroup').style.display = 'block';
+                document.getElementById('audioInputGroup').style.display = 'none';
+                document.getElementById('uploadForm').style.display = 'block';
+                document.getElementById('textInputRadio').checked = true;
+            });
+        }
+    
+        attachEventListeners(); // Attach listeners on initial load
+    
+        let progressInterval;
+        let processing = false;
+    
+        function startProcessing(event) {
+            event.preventDefault();
+    
+            if (processing) return;
+            processing = true;
+    
+            document.getElementById("loading-container").style.display = "flex";
+            document.getElementById("process-btn").disabled = true;
+    
+            let formData = new FormData(document.getElementById("uploadForm"));
+            fetch("/", {
+                method: "POST",
+                body: formData
+            })
+            .then(response => response.text())
+            .then(html => {
+                document.open();
+                document.write(html);
+                document.close();
+                attachEventListeners(); // Re-attach listeners after page content is replaced
+            })
+            .catch(error => console.error("Error:", error));
+        }
+    
+        function updateProgress() {
+            fetch("/progress")
+            .then(response => response.json())
+            .then(data => {
+                console.log("🔵 Progress received from Flask:", data.progress);
+                let progress = data.progress;
+                let progressBar = document.querySelector(".progress");
+    
+                if (progressBar) {
+                    progressBar.style.transition = "none";
+                    progressBar.style.width = "0%";
+                    progressBar.offsetWidth;
+                    progressBar.style.transition = "width 0.5s ease-in-out";
+                    progressBar.style.width = progress + "%";
+                    progressBar.innerText = progress + "%";
+                } else {
+                    console.error("🔴 Progress bar element not found!");
+                    return;
+                }
+    
+                if (progress >= 100) {
+                    clearInterval(progressInterval);
+                }
+            })
+            .catch(error => console.error("🔴 Error fetching progress:", error));
+        }
+
+        /*function cancelProcessing() {
+            fetch("/cancel", { method: "POST" })
+                .then(response => response.json())
+                .then(data => {
+                    console.log(data.message);
+                    clearInterval(progressInterval);
+                    document.getElementById("loading-container").style.display = "none";
+                    document.querySelector(".progress").style.width = "0%";
+                    document.querySelector(".progress").innerText = "0%";
+                    document.getElementById("process-btn").disabled = false;
+                    processing = false;
+                    alert("Processing has been canceled!");
+
+                    document.getElementById("uploadForm").style.display = "none";
+                    document.getElementById("audioInputGroup").style.display = "none";
+                    document.getElementById("textInputGroup").style.display = "none";
+                })
+                .catch(error => console.error("Error canceling process:", error));
+        }*/
+
+        const themeSwitch = document.getElementById("theme-switch");
+        const body = document.body;
+        const sunIcon = document.getElementById("sun-icon");
+        const moonIcon = document.getElementById("moon-icon");
+
+        function setThemeMode(mode) {
+            if (mode === "dark") {
+                body.classList.add("dark-mode");
+                themeSwitch.checked = true;
+                localStorage.setItem("theme", "dark");
+                sunIcon.style.opacity = "0.3";
+                moonIcon.style.opacity = "1";
+            } else {
+                body.classList.remove("dark-mode");
+                themeSwitch.checked = false;
+                localStorage.setItem("theme", "light");
+                sunIcon.style.opacity = "1";
+                moonIcon.style.opacity = "0.3";
+            }
+        }
+
+        themeSwitch.addEventListener("change", function () {
+            setThemeMode(themeSwitch.checked ? "dark" : "light");
+        });
+
+        window.onload = function () {
+            const savedTheme = localStorage.getItem("theme") ||
+                (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+            setThemeMode(savedTheme);
+        };
+    </script>
+    <style>
+        .progress-bar-container {
+            width: 100%;
+            max-width: 300px;
+            margin: 10px auto;
+            text-align: center;
+        }
+
+        .progress-bar {
+            width: 100%;
+            background-color: #e0e0e0;
+            border-radius: 5px;
+            overflow: hidden;
+            height: 20px;
+        }
+
+        .progress {
+            height: 100%;
+            width: 0%;
+            background-color: #4caf50;
+            text-align: center;
+            color: white;
+            line-height: 20px;
+            font-weight: bold;
+            transition: width 0.5s ease-in-out;
+        }
+        .button-group{
+            display: flex;
+            justify-content: center;
+        }
+    </style>
+</body>
+</html>
